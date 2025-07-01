@@ -142,32 +142,101 @@ export const collaborationService = {
     roles?: string[];
     status?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/collaborations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(collabData),
-    });
-    return response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/collaborations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(collabData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Collaboration creation error:', error);
+      throw error;
+    }
   },
 
   // Get collaborations for NFT
   async getCollaborations(nftId: string) {
-    const response = await fetch(`${API_BASE_URL}/collaborations/nft/${nftId}`);
-    return response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/collaborations/nft/${nftId}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Get collaborations error:', error);
+      throw error;
+    }
   },
 
   // Update collaboration status
   async updateCollaborationStatus(id: string, status: string) {
-    const response = await fetch(`${API_BASE_URL}/collaborations/${id}/status`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status }),
-    });
-    return response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/collaborations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Update collaboration status error:', error);
+      throw error;
+    }
+  },
+
+  // Get user collaborations
+  async getUserCollaborations(userAddress: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/collaborations/user/${userAddress}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Get user collaborations error:', error);
+      throw error;
+    }
+  },
+
+  // Delete collaboration
+  async deleteCollaboration(id: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/collaborations/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Delete collaboration error:', error);
+      throw error;
+    }
   },
 };
 

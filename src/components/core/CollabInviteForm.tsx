@@ -4,8 +4,11 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../cards/Card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { WalletConnectionError } from './WalletConnectionError';
 import { collaborationService } from '../../services/socialService';
 import { useToast } from '../../hooks/use-toast';
+import { useWeb3 } from '../../contexts/Web3Context';
+import { validateCollaborationData } from '../../utils/collaborationValidation';
 import { UserPlus, X } from 'lucide-react';
 
 interface Collaborator {
@@ -26,7 +29,9 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
     { address: '', role: 'author' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { currentAccount, isConnected, isCorrectNetwork } = useWeb3();
 
   const handleAddressChange = (index: number, value: string) => {
     setCollaborators(prev =>
@@ -58,19 +63,46 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
   };
 
   const handleInvite = async () => {
+    setFormError(null);
+    // Check wallet connection first
+    if (!isConnected || !currentAccount) {
+      setFormError('Please connect your wallet to create collaborations.');
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to create collaborations.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check network
+    if (!isCorrectNetwork) {
+      setFormError('Please switch to CORE Testnet to create collaborations.');
+      toast({
+        title: "Wrong Network",
+        description: "Please switch to CORE Testnet to create collaborations.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const addresses = collaborators.map(c => c.address.trim()).filter(addr => addr !== '');
     const roles = collaborators.map(c => c.role).filter((_, i) => collaborators[i].address.trim() !== '');
 
-    if (!validateAddresses(addresses)) {
+    // Use the validation utility
+    const validation = validateCollaborationData(addresses, roles, currentAccount);
+    if (!validation.isValid) {
+      setFormError(validation.error || 'Invalid input.');
       toast({
-        title: "Error",
-        description: "Please provide at least 2 valid wallet addresses.",
+        title: "Validation Error",
+        description: validation.error,
         variant: "destructive",
       });
       return;
     }
 
     setIsLoading(true);
+    setFormError(null);
     try {
       const result = await collaborationService.createCollaboration({
         nftId,
@@ -87,22 +119,35 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
         setCollaborators([{ address: '', role: 'author' }]);
         onCollaborationCreated?.(result);
       } else {
+        setFormError(result.error || 'Failed to create collaboration.');
         toast({
           title: "Error",
           description: result.error || "Failed to create collaboration.",
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      setFormError(error.message || 'Failed to create collaboration. Please try again.');
       toast({
         title: "Error",
-        description: "Failed to create collaboration. Please try again.",
+        description: error.message || "Failed to create collaboration. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Show wallet connection error if not connected or wrong network
+  if (!isConnected || !currentAccount || !isCorrectNetwork) {
+    return (
+      <WalletConnectionError
+        title="Wallet Required"
+        description="Please connect your wallet to invite collaborators to this NFT."
+        feature="collaboration invitation"
+      />
+    );
+  }
 
   return (
     <Card>
@@ -117,6 +162,14 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
           Invite other researchers to collaborate on this NFT. Each collaborator will have shared ownership and rights.
         </p>
 
+        {/* Show current user info */}
+        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-sm text-blue-800">
+            <span className="font-semibold">Your Address:</span> {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
+          </p>
+          <p className="text-xs text-blue-600 mt-1">You will be the lead collaborator</p>
+        </div>
+
         {collaborators.map((collaborator, index) => (
           <div key={index} className="flex space-x-2 items-start">
             <div className="flex-1 space-y-2">
@@ -126,7 +179,7 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
                 value={collaborator.address}
                 onChange={(e) => handleAddressChange(index, e.target.value)}
                 placeholder="0x..."
-                className="font-mono text-sm"
+                className={`font-mono text-sm ${formError && !collaborator.address ? 'border-red-500' : ''}`}
               />
             </div>
             
@@ -167,6 +220,13 @@ export const CollabInviteForm: React.FC<CollabInviteFormProps> = ({
             Add Collaborator
           </Button>
         </div>
+
+        {/* Error message display */}
+        {formError && (
+          <div className="text-red-500 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm font-medium">
+            {formError}
+          </div>
+        )}
 
         <div className="pt-4 border-t">
           <Button 

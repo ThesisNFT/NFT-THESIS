@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { CollabInviteForm } from '../components/core/CollabInviteForm';
+import { WalletConnectionError } from '../components/core/WalletConnectionError';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/cards/Card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/buttons/Button';
 import { useWeb3 } from '../contexts/Web3Context';
-import { Users, Plus, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Users, Plus, Clock, CheckCircle, XCircle, Wallet, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 
 interface Collaboration {
   _id: string;
@@ -17,17 +18,17 @@ interface Collaboration {
 }
 
 export const Collaboration: React.FC = () => {
-  const { currentAccount } = useWeb3();
+  const { currentAccount, isConnected, isCorrectNetwork, networkStatus, connectWallet } = useWeb3();
   const [collaborations, setCollaborations] = useState<Collaboration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [selectedNFT, setSelectedNFT] = useState<string>('');
 
   useEffect(() => {
-    if (currentAccount) {
+    if (currentAccount && isConnected && isCorrectNetwork) {
       loadCollaborations();
     }
-  }, [currentAccount]);
+  }, [currentAccount, isConnected, isCorrectNetwork]);
 
   const loadCollaborations = async () => {
     setIsLoading(true);
@@ -95,18 +96,24 @@ export const Collaboration: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  if (!currentAccount) {
+  const handleConnectWallet = async () => {
+    try {
+      await connectWallet();
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  };
+
+  // Show wallet connection error if not connected or wrong network
+  if (!isConnected || !currentAccount || !isCorrectNetwork) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-950 to-black">
-        <Card className="backdrop-blur-xl bg-gradient-to-br from-blue-900/60 to-black/80 border border-blue-700/40 shadow-2xl rounded-2xl w-full max-w-md">
-          <CardContent className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-blue-400 mb-4" />
-            <h2 className="text-2xl font-bold mb-2 text-blue-200">Connect Your Wallet</h2>
-            <p className="text-gray-400">
-              Please connect your wallet to manage collaborations.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-950 to-black px-4">
+        <WalletConnectionError
+          title="Connect Your Wallet"
+          description="Please connect your wallet to manage collaborations and invite other researchers to work together on NFTs."
+          feature="collaboration management"
+          className="w-full max-w-md"
+        />
       </div>
     );
   }
@@ -140,50 +147,15 @@ export const Collaboration: React.FC = () => {
             </CardHeader>
             {showInviteForm && (
               <CardContent>
-                <div className="animate-fade-in space-y-6 bg-white/10 dark:bg-black/30 rounded-2xl shadow-2xl border border-blue-400/30 p-8 backdrop-blur-xl">
-                  <h2 className="text-2xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center gap-2 mb-2">
-                    <Users className="w-7 h-7" /> Invite Collaborators
-                  </h2>
-                  <p className="text-gray-300 mb-4">
-                    Invite other researchers to collaborate on this NFT. Each collaborator will have shared ownership and rights.
-                  </p>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-blue-200 mb-1">Wallet Address</label>
-                      <input
-                        className="w-full px-4 py-3 rounded-lg border border-blue-400 bg-black/40 text-blue-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition"
-                        placeholder="0x..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-blue-200 mb-1">Role</label>
-                      <select
-                        className="w-full px-4 py-3 rounded-lg border border-blue-400 bg-black/40 text-blue-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition"
-                      >
-                        <option>Author</option>
-                        <option>Co-Author</option>
-                        <option>Reviewer</option>
-                      </select>
-                    </div>
-                    <button
-                      className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold shadow-lg hover:from-blue-600 hover:to-purple-600 transition"
-                      type="button"
-                    >
-                      <Plus className="w-4 h-4" /> Add Collaborator
-                    </button>
-                  </div>
-                  <button
-                    className="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg shadow-xl hover:from-blue-700 hover:to-purple-700 transition"
-                    type="submit"
-                  >
-                    Create Collaboration
-                  </button>
-                  <ul className="mt-6 text-xs text-blue-200 space-y-1 list-disc list-inside">
-                    <li>All collaborators will have shared ownership of the NFT</li>
-                    <li>Revenue and royalties will be split according to roles</li>
-                    <li>Collaborators can vote on important decisions</li>
-                  </ul>
-                </div>
+                <CollabInviteForm 
+                  nftId="demo-nft-001"
+                  onCollaborationCreated={(collab) => {
+                    console.log('Collaboration created:', collab);
+                    setShowInviteForm(false);
+                    // Refresh collaborations list
+                    loadCollaborations();
+                  }}
+                />
               </CardContent>
             )}
           </Card>

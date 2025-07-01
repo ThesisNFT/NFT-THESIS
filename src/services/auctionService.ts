@@ -1,6 +1,6 @@
 import Web3 from "web3";
 import { CONTRACT_ADDRESSES } from "../config/contractAddresses";
-import ThesisAuctionABI from "../../core-contract/artifacts/contracts/Thesis-Auction.sol/ThesisAuction.json";
+import ThesisAuctionABI from "../abis/ThesisAuction.json";
 import { NFTContractService, MintedNFT } from './nftContractService';
 import type { Contract } from 'web3-eth-contract';
 import type { AbiItem } from 'web3-utils';
@@ -38,7 +38,7 @@ export interface Auction {
 export class AuctionService {
   private static instance: AuctionService;
   private web3: Web3;
-  private contract: Contract<AbiItem[]>;
+  private contract: Contract<any>;
   private walletAddress: string | null = null;
   private auctions: Map<string, Auction> = new Map();
   private nftService = NFTContractService.getInstance();
@@ -283,67 +283,68 @@ export class AuctionService {
   }
 
   /**
-   * Fetch all bids for a given auction (tokenId) using BidPlaced events
+   * Fetch bids for a specific auction from the contract
    */
   async fetchAuctionBids(tokenId: number): Promise<Bid[]> {
-    const events = await this.contract.getPastEvents('BidPlaced', {
-      filter: { tokenId: String(tokenId) },
+    const events = await this.contract.getPastEvents('BidRevealed', {
+      filter: { tokenId: tokenId },
       fromBlock: 0,
-      toBlock: 'latest',
-    }) as unknown as EventLog[];
-    return events.map(e => {
-      const bidder = e.returnValues && typeof e.returnValues.bidder === 'string' ? e.returnValues.bidder : '';
-      const amount = e.returnValues && e.returnValues.amount ? Number(e.returnValues.amount) : 0;
-      return {
-        bidder,
-        amount,
-        timestamp: new Date(), // Block timestamp not available here
-        transactionHash: e.transactionHash || '',
-        blockNumber: e.blockNumber || 0,
-      };
+      toBlock: 'latest'
     });
+
+    const bids: Bid[] = [];
+    events.forEach(event => {
+      if (typeof event === 'object' && event.returnValues) {
+        bids.push({
+          bidder: event.returnValues.bidder as string,
+          amount: parseFloat(this.web3.utils.fromWei(event.returnValues.amount as string, 'ether')),
+          timestamp: new Date(Number(event.returnValues.timestamp) * 1000),
+          transactionHash: event.transactionHash || ''
+        });
+      }
+    });
+    return bids;
   }
 
   /**
-   * Fetch the winner for a given auction (tokenId) using AuctionEnded event or auctionInfo
+   * Fetch the winner for a specific auction from the contract
    */
   async fetchAuctionWinner(tokenId: number): Promise<string | null> {
     const events = await this.contract.getPastEvents('AuctionEnded', {
-      filter: { tokenId: String(tokenId) },
+      filter: { tokenId: tokenId },
       fromBlock: 0,
-      toBlock: 'latest',
-    }) as unknown as EventLog[];
-    if (events.length > 0 && events[0].returnValues && typeof events[0].returnValues.winner === 'string') {
-      return events[0].returnValues.winner;
+      toBlock: 'latest'
+    });
+
+    const eventLog = events.find(e => typeof e === 'object' && e.returnValues);
+    if (eventLog && typeof eventLog === 'object') {
+      return eventLog.returnValues.winner as string;
     }
-    try {
-      const info = await this.contract.methods.auctionInfo(tokenId).call();
-      return info && typeof info.highestBidder === 'string' ? info.highestBidder : null;
-    } catch {
-      return null;
-    }
+    
+    return null;
   }
 
   /**
-   * Fetch all bids by a user (on-chain) using BidPlaced events
+   * Fetch bids for a specific user from the contract
    */
   async fetchUserBids(userAddress: string): Promise<Bid[]> {
-    const events = await this.contract.getPastEvents('BidPlaced', {
+    const events = await this.contract.getPastEvents('BidRevealed', {
       filter: { bidder: userAddress },
       fromBlock: 0,
-      toBlock: 'latest',
-    }) as unknown as EventLog[];
-    return events.map(e => {
-      const tokenId = e.returnValues && e.returnValues.tokenId ? String(e.returnValues.tokenId) : '';
-      const amount = e.returnValues && e.returnValues.amount ? Number(e.returnValues.amount) : 0;
-      return {
-        bidder: userAddress,
-        amount,
-        timestamp: new Date(), // Block timestamp not available here
-        transactionHash: e.transactionHash || '',
-        blockNumber: e.blockNumber || 0,
-        tokenId,
-      };
+      toBlock: 'latest'
     });
+
+    const bids: Bid[] = [];
+    events.forEach(event => {
+      if (typeof event === 'object' && event.returnValues) {
+        bids.push({
+          bidder: event.returnValues.bidder as string,
+          amount: parseFloat(this.web3.utils.fromWei(event.returnValues.amount as string, 'ether')),
+          timestamp: new Date(Number(event.returnValues.timestamp) * 1000),
+          transactionHash: event.transactionHash || ''
+        });
+      }
+    });
+    return bids;
   }
 }
